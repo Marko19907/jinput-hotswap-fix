@@ -52,7 +52,7 @@ static LRESULT CALLBACK DummyWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM
 	        }
 	        switch (input_data->header.dwType) {
 	            case RIM_TYPEMOUSE:
-	                handleMouseEvent(env, addMouseEvent_method2, time, input_data);
+	                handleMouseEvent(env, addMouseEvent_method, time, input_data);
 	                break;
 	            case RIM_TYPEKEYBOARD:
 	                handleKeyboardEvent(env, addKeyboardEvent_method, time, input_data);
