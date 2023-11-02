@@ -12,15 +12,104 @@
 
 static const TCHAR* DUMMY_WINDOW_NAME = "JInputControllerWindow";
 
-static LRESULT CALLBACK DummyWndProc(
-    HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-    return DefWindowProc(hWnd, message, wParam, lParam);
+// Global reference to the JVM
+JavaVM* jvm;
+JNIEnv* g_env;
+
+// Global vars
+jmethodID addMouseEvent_method;
+jmethodID addKeyboardEvent_method;
+
+static LRESULT CALLBACK DummyWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    JNIEnv* env;
+    JavaVMAttachArgs args;
+    args.version = JNI_VERSION_1_6;
+    // args.name = NULL;
+    // args.group = NULL;
+    (*jvm)->AttachCurrentThread(jvm, (void**)&env, &args);
+
+	switch (uMsg) {
+	    case WM_INPUT:
+	        // Handle WM_INPUT message.
+	        UINT input_size;
+	        RAWINPUT *input_data;
+	        LONG time;
+
+	        time = GetMessageTime();
+	        if (GetRawInputData((HRAWINPUT)lParam, RID_INPUT, NULL, &input_size, sizeof(RAWINPUTHEADER)) == (UINT)-1) {
+	            throwIOException(env, "Failed to get raw input data size (%d)\n", GetLastError());
+	            return DefWindowProc(hwnd, uMsg, wParam, lParam);
+	        }
+	        input_data = (RAWINPUT *)malloc(input_size);
+	        if (input_data == NULL) {
+	            throwIOException(env, "Failed to allocate input data buffer\n");
+	            return DefWindowProc(hwnd, uMsg, wParam, lParam);
+	        }
+	        if (GetRawInputData((HRAWINPUT)lParam, RID_INPUT, input_data, &input_size, sizeof(RAWINPUTHEADER)) == (UINT)-1) {
+	            free(input_data);
+	            throwIOException(env, "Failed to get raw input data (%d)\n", GetLastError());
+	            return DefWindowProc(hwnd, uMsg, wParam, lParam);
+	        }
+	        switch (input_data->header.dwType) {
+	            case RIM_TYPEMOUSE:
+	                handleMouseEvent(env, addMouseEvent_method2, time, input_data);
+	                break;
+	            case RIM_TYPEKEYBOARD:
+	                handleKeyboardEvent(env, addKeyboardEvent_method, time, input_data);
+	                break;
+	            default:
+	                /* ignore other types of message */
+	                break;
+	        }
+	        free(input_data);
+	        break;
+
+	    case WM_USER:
+	        // Dummy message to wake up the message loop, do nothing
+	        break;
+	}
+
+	return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
+
+static void handleMouseEvent(JNIEnv *env, jmethodID add_method, LONG time, RAWINPUT *data) {
+    jclass cls = (*env)->FindClass(env, "net/java/games/input/RawInputEventQueue");
+    if (cls == NULL) {
+        return;  // Class not found
+    }
+    (*env)->CallStaticVoidMethod(env, cls, add_method,
+        (jlong)(INT_PTR)data->header.hDevice,
+        (jlong)time,
+        (jint)data->data.mouse.usFlags,
+        (jint)data->data.mouse.usButtonFlags,
+        (jint)(SHORT)data->data.mouse.usButtonData,
+        (jlong)data->data.mouse.ulRawButtons,
+        (jlong)data->data.mouse.lLastX,
+        (jlong)data->data.mouse.lLastY,
+        (jlong)data->data.mouse.ulExtraInformation
+    );
+}
+
+static void handleKeyboardEvent(JNIEnv *env, jmethodID add_method, LONG time, RAWINPUT *data) {
+    jclass cls = (*env)->FindClass(env, "net/java/games/input/RawInputEventQueue");
+    if (cls == NULL) {
+        return;  // Class not found
+    }
+    (*env)->CallStaticVoidMethod(env, cls, add_method,
+        (jlong)(INT_PTR)data->header.hDevice,
+        (jlong)time,
+        (jint)data->data.keyboard.MakeCode,
+        (jint)data->data.keyboard.Flags,
+        (jint)data->data.keyboard.VKey,
+        (jint)data->data.keyboard.Message,
+        (jlong)data->data.keyboard.ExtraInformation
+    );
 }
 
 static BOOL RegisterDummyWindow(HINSTANCE hInstance)
 {
 	WNDCLASSEX wcex;
-	wcex.cbSize = sizeof(WNDCLASSEX); 
+	wcex.cbSize = sizeof(WNDCLASSEX);
 	wcex.style			= CS_HREDRAW | CS_VREDRAW;
 	wcex.lpfnWndProc	= (WNDPROC)DummyWndProc;
 	wcex.cbClsExtra		= 0;
@@ -42,7 +131,12 @@ JNIEXPORT jlong JNICALL Java_net_java_games_input_DummyWindow_createWindow(JNIEn
 	class_info.cbSize = sizeof(WNDCLASSEX);
 	class_info.cbClsExtra = 0;
 	class_info.cbWndExtra = 0;
-	
+
+	// Store the JVM pointer for later use
+    env->GetJavaVM(&jvm);
+
+    jvm->GetEnv((void**)&g_env, JNI_VERSION_1_6);
+
 	if (!GetClassInfoEx(hInst, DUMMY_WINDOW_NAME, &class_info)) {
 		// Register the dummy input window
 		if (!RegisterDummyWindow(hInst)) {

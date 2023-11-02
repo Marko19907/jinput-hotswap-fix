@@ -19,7 +19,7 @@
  * ANY IMPLIED WARRANT OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR
  * NON-INFRINGEMEN, ARE HEREBY EXCLUDED.  SUN MICROSYSTEMS, INC. ("SUN") AND
  * ITS LICENSORS SHALL NOT BE LIABLE FOR ANY DAMAGES SUFFERED BY LICENSEE AS
- * A RESULT OF USING, MODIFYING OR DESTRIBUTING THIS SOFTWARE OR ITS 
+ * A RESULT OF USING, MODIFYING OR DESTRIBUTING THIS SOFTWARE OR ITS
  * DERIVATIVES.  IN NO EVENT WILL SUN OR ITS LICENSORS BE LIABLE FOR ANY LOST
  * REVENUE, PROFIT OR DATA, OR FOR DIRECT, INDIRECT, SPECIAL, CONSEQUENTIAL,
  * INCIDENTAL OR PUNITIVE DAMAGES.  HOWEVER CAUSED AND REGARDLESS OF THE THEORY
@@ -46,12 +46,14 @@ public final class RawInputEventQueue {
 
 	private final Object monitor = new Object();
 
-	private List<RawDevice> devices;
+	private static final List<RawDevice> DEVICES = new ArrayList<>();
 
 	private final List<QueueThread> threads = new ArrayList<>();
 
 	public void start(List<RawDevice> devices) throws IOException {
-		this.devices = devices;
+		DEVICES.clear();
+		DEVICES.addAll(devices);
+
 		QueueThread queue = new QueueThread();
 		synchronized (monitor) {
             this.threads.add(queue);
@@ -77,12 +79,12 @@ public final class RawInputEventQueue {
 			thread.interrupt();
 			this.postMessage(thread.window);
 		});
-        this.threads.clear();
+		this.threads.clear();
 	}
 
-	private RawDevice lookupDevice(long handle) {
-		for (int i = 0; i < devices.size(); i++) {
-			RawDevice device = devices.get(i);
+	private static RawDevice lookupDevice(long handle) {
+		for (int i = 0; i < DEVICES.size(); i++) {
+			RawDevice device = DEVICES.get(i);
 			if (device.getHandle() == handle)
 				return device;
 		}
@@ -152,8 +154,8 @@ public final class RawInputEventQueue {
 				return;
 			Set<RawDeviceInfo> active_infos = new HashSet<>();
 			try {
-				for (int i = 0; i < devices.size(); i++) {
-					RawDevice device = devices.get(i);
+				for (int i = 0; i < DEVICES.size(); i++) {
+					RawDevice device = DEVICES.get(i);
 					active_infos.add(device.getInfo());
 				}
 				RawDeviceInfo[] active_infos_array = new RawDeviceInfo[active_infos.size()];

@@ -11,39 +11,8 @@
 #include "net_java_games_input_RawInputEventQueue.h"
 #include "util.h"
 
-static void handleMouseEvent(JNIEnv *env, jobject self, jmethodID add_method, LONG time, RAWINPUT *data) {
-	(*env)->CallVoidMethod(env, self, add_method,
-		(jlong)(INT_PTR)data->header.hDevice,
-		(jlong)time,
-		(jint)data->data.mouse.usFlags,
-		(jint)data->data.mouse.usButtonFlags,
-		/*
-		 * The Raw Input spec says that the usButtonData
-		 * is a signed value, if RI_MOUSE_WHEEL
-		 * is set in usFlags. However, usButtonData
-		 * is an unsigned value, for unknown reasons,
-		 * and since its only known use is the wheel
-		 * delta, we'll convert it to a signed value here
-		 */
-		(jint)(SHORT)data->data.mouse.usButtonData,
-		(jlong)data->data.mouse.ulRawButtons,
-		(jlong)data->data.mouse.lLastX,
-		(jlong)data->data.mouse.lLastY,
-		(jlong)data->data.mouse.ulExtraInformation
-		);
-}
-
-static void handleKeyboardEvent(JNIEnv *env, jobject self, jmethodID add_method, LONG time, RAWINPUT *data) {
-	(*env)->CallVoidMethod(env, self, add_method,
-		(jlong)(INT_PTR)data->header.hDevice,
-		(jlong)time,
-		(jint)data->data.keyboard.MakeCode,
-		(jint)data->data.keyboard.Flags,
-		(jint)data->data.keyboard.VKey,
-		(jint)data->data.keyboard.Message,
-		(jlong)data->data.keyboard.ExtraInformation
-		);
-}
+extern jmethodID addMouseEvent_method;
+extern jmethodID addKeyboardEvent_method;
 
 JNIEXPORT void JNICALL Java_net_java_games_input_RawInputEventQueue_nRegisterDevices(JNIEnv *env, jclass unused, jint flags, jlong hwnd_addr, jobjectArray device_infos) {
 	BOOL res;
@@ -128,53 +97,15 @@ JNIEXPORT void JNICALL Java_net_java_games_input_RawInputEventQueue_nPoll(JNIEnv
 	LONG time;
 	jclass self_class = (*env)->GetObjectClass(env, self);
 
+	jclass cls = (*env)->GetObjectClass(env, self);
+
+    addMouseEvent_method = (*env)->GetStaticMethodID(env, cls, "addMouseEvent", "(JJIIIJJJJ)V");
+    addKeyboardEvent_method = (*env)->GetStaticMethodID(env, cls, "addKeyboardEvent", "(JJIIIIJ)V");
+
 	if (self_class == NULL)
 		return;
-	addMouseEvent_method = (*env)->GetMethodID(env, self_class, "addMouseEvent", "(JJIIIJJJJ)V");
 	if (addMouseEvent_method == NULL)
 		return;
-	addKeyboardEvent_method = (*env)->GetMethodID(env, self_class, "addKeyboardEvent", "(JJIIIIJ)V");
 	if (addKeyboardEvent_method == NULL)
 		return;
-	if (GetMessage(&msg, hwnd, 0, 0) != 0) { // Note: GetMessage is blocking!
-	    if (msg.message == WM_USER) {
-	        // Dummy message used to break GetMessage, just return
-	        return;
-	    }
-		if (msg.message != WM_INPUT) {
-			DefWindowProc(hwnd, msg.message, msg.wParam, msg.lParam);
-			return; // ignore it
-		}
-		time = msg.time;
-		if (GetRawInputData((HRAWINPUT)msg.lParam, RID_INPUT, NULL, &input_size, sizeof(RAWINPUTHEADER)) == (UINT)-1) {
-			throwIOException(env, "Failed to get raw input data size (%d)\n", GetLastError());
-			DefWindowProc(hwnd, msg.message, msg.wParam, msg.lParam);
-			return;
-		}
-		input_data = (RAWINPUT *)malloc(input_size);
-		if (input_data == NULL) {
-			throwIOException(env, "Failed to allocate input data buffer\n");
-			DefWindowProc(hwnd, msg.message, msg.wParam, msg.lParam);
-			return;
-		}
-		if (GetRawInputData((HRAWINPUT)msg.lParam, RID_INPUT, input_data, &input_size, sizeof(RAWINPUTHEADER)) == (UINT)-1) {
-			free(input_data);
-			throwIOException(env, "Failed to get raw input data (%d)\n", GetLastError());
-			DefWindowProc(hwnd, msg.message, msg.wParam, msg.lParam);
-			return;
-		}
-		switch (input_data->header.dwType) {
-			case RIM_TYPEMOUSE:
-				handleMouseEvent(env, self, addMouseEvent_method, time, input_data);
-				break;
-			case RIM_TYPEKEYBOARD:
-				handleKeyboardEvent(env, self, addKeyboardEvent_method, time, input_data);
-				break;
-			default:
-				/* ignore other types of message */
-				break;
-		}
-		free(input_data);
-		DefWindowProc(hwnd, msg.message, msg.wParam, msg.lParam);
-	}		
 }
