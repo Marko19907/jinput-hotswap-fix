@@ -14,7 +14,6 @@ static const TCHAR* DUMMY_WINDOW_NAME = "JInputControllerWindow";
 
 // Global reference to the JVM
 JavaVM* jvm;
-JNIEnv* g_env;
 
 // Global vars
 jmethodID addMouseEvent_method;
@@ -58,8 +57,6 @@ static LRESULT CALLBACK DummyWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM
     JNIEnv* env;
     JavaVMAttachArgs args;
     args.version = JNI_VERSION_1_6;
-    // args.name = NULL;
-    // args.group = NULL;
     (*jvm)->AttachCurrentThread(jvm, (void**)&env, &args);
 
 	switch (uMsg) {
@@ -124,6 +121,12 @@ static BOOL RegisterDummyWindow(HINSTANCE hInstance)
 	return RegisterClassEx(&wcex);
 }
 
+// The VM calls JNI_OnLoad when the native library is loaded
+jint JNI_OnLoad(JavaVM* vm, void* reserved) {
+    jvm = vm;
+    return JNI_VERSION_1_6;
+}
+
 JNIEXPORT jlong JNICALL Java_net_java_games_input_DummyWindow_createWindow(JNIEnv *env, jclass unused) {
     HINSTANCE hInst = GetModuleHandle(NULL);
 	HWND hwndDummy;
@@ -131,11 +134,6 @@ JNIEXPORT jlong JNICALL Java_net_java_games_input_DummyWindow_createWindow(JNIEn
 	class_info.cbSize = sizeof(WNDCLASSEX);
 	class_info.cbClsExtra = 0;
 	class_info.cbWndExtra = 0;
-
-	// Store the JVM pointer for later use
-    env->GetJavaVM(&jvm);
-
-    jvm->GetEnv((void**)&g_env, JNI_VERSION_1_6);
 
 	if (!GetClassInfoEx(hInst, DUMMY_WINDOW_NAME, &class_info)) {
 		// Register the dummy input window
