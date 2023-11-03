@@ -20,6 +20,40 @@ JNIEnv* g_env;
 jmethodID addMouseEvent_method;
 jmethodID addKeyboardEvent_method;
 
+static void handleMouseEvent(JNIEnv *env, jmethodID add_method, LONG time, RAWINPUT *data) {
+    jclass cls = (*env)->FindClass(env, "net/java/games/input/RawInputEventQueue");
+    if (cls == NULL) {
+        return;  // Class not found
+    }
+    (*env)->CallStaticVoidMethod(env, cls, add_method,
+        (jlong)(INT_PTR)data->header.hDevice,
+        (jlong)time,
+        (jint)data->data.mouse.usFlags,
+        (jint)data->data.mouse.usButtonFlags,
+        (jint)(SHORT)data->data.mouse.usButtonData,
+        (jlong)data->data.mouse.ulRawButtons,
+        (jlong)data->data.mouse.lLastX,
+        (jlong)data->data.mouse.lLastY,
+        (jlong)data->data.mouse.ulExtraInformation
+    );
+}
+
+static void handleKeyboardEvent(JNIEnv *env, jmethodID add_method, LONG time, RAWINPUT *data) {
+    jclass cls = (*env)->FindClass(env, "net/java/games/input/RawInputEventQueue");
+    if (cls == NULL) {
+        return;  // Class not found
+    }
+    (*env)->CallStaticVoidMethod(env, cls, add_method,
+        (jlong)(INT_PTR)data->header.hDevice,
+        (jlong)time,
+        (jint)data->data.keyboard.MakeCode,
+        (jint)data->data.keyboard.Flags,
+        (jint)data->data.keyboard.VKey,
+        (jint)data->data.keyboard.Message,
+        (jlong)data->data.keyboard.ExtraInformation
+    );
+}
+
 static LRESULT CALLBACK DummyWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     JNIEnv* env;
     JavaVMAttachArgs args;
@@ -70,40 +104,6 @@ static LRESULT CALLBACK DummyWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM
 	}
 
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
-}
-
-static void handleMouseEvent(JNIEnv *env, jmethodID add_method, LONG time, RAWINPUT *data) {
-    jclass cls = (*env)->FindClass(env, "net/java/games/input/RawInputEventQueue");
-    if (cls == NULL) {
-        return;  // Class not found
-    }
-    (*env)->CallStaticVoidMethod(env, cls, add_method,
-        (jlong)(INT_PTR)data->header.hDevice,
-        (jlong)time,
-        (jint)data->data.mouse.usFlags,
-        (jint)data->data.mouse.usButtonFlags,
-        (jint)(SHORT)data->data.mouse.usButtonData,
-        (jlong)data->data.mouse.ulRawButtons,
-        (jlong)data->data.mouse.lLastX,
-        (jlong)data->data.mouse.lLastY,
-        (jlong)data->data.mouse.ulExtraInformation
-    );
-}
-
-static void handleKeyboardEvent(JNIEnv *env, jmethodID add_method, LONG time, RAWINPUT *data) {
-    jclass cls = (*env)->FindClass(env, "net/java/games/input/RawInputEventQueue");
-    if (cls == NULL) {
-        return;  // Class not found
-    }
-    (*env)->CallStaticVoidMethod(env, cls, add_method,
-        (jlong)(INT_PTR)data->header.hDevice,
-        (jlong)time,
-        (jint)data->data.keyboard.MakeCode,
-        (jint)data->data.keyboard.Flags,
-        (jint)data->data.keyboard.VKey,
-        (jint)data->data.keyboard.Message,
-        (jlong)data->data.keyboard.ExtraInformation
-    );
 }
 
 static BOOL RegisterDummyWindow(HINSTANCE hInstance)
